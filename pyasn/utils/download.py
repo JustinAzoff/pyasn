@@ -40,19 +40,19 @@ else:
     from urllib.request import urlopen
 
 
-# Parse command line options
-# Note: --latest might be changes to --46, instead of --4, in the future
-parser = ArgumentParser(description="Script to download MRT/RIB BGP archives (from RouteViews).")
-group = parser.add_mutually_exclusive_group(required=True)
-group.add_argument('--latestv4', '-4', '--latest', action='store_true',
-                   help='Grab lastest IPV4 data')
-group.add_argument('--latestv6', '-6', action='store_true', help='Grab lastest IPV6 data')
-group.add_argument('--latestv46', '-46', action='store_true', help='Grab lastest IPV4/V6 data')
-group.add_argument('--version', action='store_true')
-group.add_argument('--dates-from-file', '-f', action='store',
-                   help='Grab IPV4 archives for specifc dates (one date, YYYYMMDD, per line)')
-args = parser.parse_args()
-
+def get_parser():
+    # Parse command line options
+    # Note: --latest might be changes to --46, instead of --4, in the future
+    parser = ArgumentParser(description="Script to download MRT/RIB BGP archives (from RouteViews).")
+    group = parser.add_mutually_exclusive_group(required=True)
+    group.add_argument('--latestv4', '-4', '--latest', action='store_true',
+                       help='Grab lastest IPV4 data')
+    group.add_argument('--latestv6', '-6', action='store_true', help='Grab lastest IPV6 data')
+    group.add_argument('--latestv46', '-46', action='store_true', help='Grab lastest IPV4/V6 data')
+    group.add_argument('--version', action='store_true')
+    group.add_argument('--dates-from-file', '-f', action='store',
+                       help='Grab IPV4 archives for specifc dates (one date, YYYYMMDD, per line)')
+    return parser
 
 def ftp_download(server, remote_dir, remote_file, local_file, print_progress=True):
     """Downloads a file from an FTP server and stores it locally"""
@@ -116,63 +116,72 @@ def find_latest_routeviews(archive_ipv):
                               sub_dir='RIBS')
 
 
-if args.version:
-    print("MRT/RIB downloader version %s." % __version__)
+def main(args):
+    if args.version:
+        print("MRT/RIB downloader version %s." % __version__)
 
 
-if args.latestv4 or args.latestv6 or args.latestv46:
-    # Download latest RouteViews MRT/RIB archive
-    srvr, rp, fn = find_latest_routeviews(4 if args.latestv4 else 6 if args.latestv6 else '46')
-    ftp_download(srvr, rp, fn, fn)
+    if args.latestv4 or args.latestv6 or args.latestv46:
+        # Download latest RouteViews MRT/RIB archive
+        srvr, rp, fn = find_latest_routeviews(4 if args.latestv4 else 6 if args.latestv6 else '46')
+        ftp_download(srvr, rp, fn, fn)
 
 
-if args.dates_from_file:
-    # read dates from a local file and use wget to download range
-    dates_to_get = []
-    f = open(args.dates_from_file)
-    if not f:
-        print("can't open %s" % args.dates_from_file)
-        exit()
-    for s in f:
-        if not s.strip() or s[0] == '#':
-            continue
-        dt = date(int(s[:4]), int(s[4:6]), int(s[6:8]))  # Dates are strangely YYYYMMDD :)
-        dates_to_get.append(dt)
+    if args.dates_from_file:
+        # read dates from a local file and use wget to download range
+        dates_to_get = []
+        f = open(args.dates_from_file)
+        if not f:
+            print("can't open %s" % args.dates_from_file)
+            exit()
+        for s in f:
+            if not s.strip() or s[0] == '#':
+                continue
+            dt = date(int(s[:4]), int(s[4:6]), int(s[6:8]))  # Dates are strangely YYYYMMDD :)
+            dates_to_get.append(dt)
 
-    for dt in dates_to_get:
-        # FIXME: currently v4 only. should understand v4/v6 options, and possibly use FTP method
-        url_dir = 'http://archive.routeviews.org/bgpdata/%d.%02d/RIBS/' % (dt.year, dt.month)
-        print('Searching %s for %d-%02d-%02d...' % (url_dir, dt.year, dt.month, dt.day), end=' ')
-        stdout.flush()
+        for dt in dates_to_get:
+            # FIXME: currently v4 only. should understand v4/v6 options, and possibly use FTP method
+            url_dir = 'http://archive.routeviews.org/bgpdata/%d.%02d/RIBS/' % (dt.year, dt.month)
+            print('Searching %s for %d-%02d-%02d...' % (url_dir, dt.year, dt.month, dt.day), end=' ')
+            stdout.flush()
 
-        html = str(urlopen(url_dir).read())
-        str_find = 'rib.%d%02d%02d' % (dt.year, dt.month, dt.day)
+            html = str(urlopen(url_dir).read())
+            str_find = 'rib.%d%02d%02d' % (dt.year, dt.month, dt.day)
 
-        ix = html.find(str_find + '.06')  # get the file saved at 6 AM for consistency
-        if ix == -1:
-            ix = html.find(str_find + '.05')  # if not, try 5 AM
+            ix = html.find(str_find + '.06')  # get the file saved at 6 AM for consistency
             if ix == -1:
-                ix = html.find(str_find + '.00')  # last resort, try the one saved at midnight
+                ix = html.find(str_find + '.05')  # if not, try 5 AM
                 if ix == -1:
-                    print('=> ERROR - NOT FOUND.')
-                    continue
+                    ix = html.find(str_find + '.00')  # last resort, try the one saved at midnight
+                    if ix == -1:
+                        print('=> ERROR - NOT FOUND.')
+                        continue
 
-        fname = html[ix:ix+21]
-        s = html[ix+80:ix+150]
-        ix = s.find('"right"')
-        assert ix != -1
-        s = s[ix+8:]
-        ix = s.find("</td>")
-        assert ix != -1
-        size = s[:ix]
+            fname = html[ix:ix+21]
+            s = html[ix+80:ix+150]
+            ix = s.find('"right"')
+            assert ix != -1
+            s = s[ix+8:]
+            ix = s.find("</td>")
+            assert ix != -1
+            size = s[:ix]
 
-        url_full = url_dir + fname
-        print('downloading...', end=' ')
-        stdout.flush()
-        # FIXME: Why using urllib AND wget? Can urllib do listing AND downloading? (OR ftp...)
-        ret = call(['wget', '-q', url_full])  # wget in quiet mode
-        print()
-        ret = "" if ret == 0 else "[FAIL:%d]" % ret
+            url_full = url_dir + fname
+            print('downloading...', end=' ')
+            stdout.flush()
+            # FIXME: Why using urllib AND wget? Can urllib do listing AND downloading? (OR ftp...)
+            ret = call(['wget', '-q', url_full])  # wget in quiet mode
+            print()
+            ret = "" if ret == 0 else "[FAIL:%d]" % ret
 
-        print('%s\t%s\t%s\t%s' % (dt, size, url_full, ret))
-        stdout.flush()
+            print('%s\t%s\t%s\t%s' % (dt, size, url_full, ret))
+            stdout.flush()
+
+def climain():
+    parser = get_parser()
+    args = parser.parse_args()
+    main(args)
+
+if __name__ == "__main__":
+    climain()

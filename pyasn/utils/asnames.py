@@ -124,8 +124,10 @@ def download_asnames():
     raw_data = raw_data.encode('utf-8')
     return raw_data.decode("utf-8")
 
-
-if __name__ == '__main__':
+def climain():
     parser = get_parser()
     args = parser.parse_args()
     main(args)
+
+if __name__ == '__main__':
+    climain()

@@ -2,7 +2,6 @@ from __future__ import print_function
 import codecs
 import sys
 import platform
-import glob
 from setuptools import setup, find_packages, Extension
 from os.path import abspath, dirname, join
 
@@ -24,8 +23,6 @@ if sys.version_info[0] == 2 and sys.version_info[1] < 7:
 if sys.version_info[0] == 2:
     reqs.append('backport-ipaddress')
 
-
-utils = glob.glob('pyasn-utils/*.py')
 
 __version__ = None
 exec(open('pyasn/_version.py').read())  # load the actual __version__
@@ -52,7 +49,13 @@ setup(
     keywords='ip asn autonomous system bgp whois prefix radix python routing networking',
     install_requires=reqs,
     data_files=[],
-    scripts=utils,
+    entry_points = {
+	'console_scripts': [
+	    'pyasn_util_asnames  = pyasn.utils.asnames:climain',
+	    'pyasn_util_convert  = pyasn.utils.convert:climain',
+	    'pyasn_util_download = pyasn.utils.download:climain',
+	]
+    },
     setup_requires=[],
     tests_require=['nose', 'coverage'],
     packages=find_packages(exclude=['tests', 'tests.*']),

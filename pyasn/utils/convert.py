@@ -27,7 +27,7 @@
 from __future__ import print_function, division
 from pyasn import mrtx, __version__
 from time import time
-from sys import argv, exit, stdout
+from sys import stdout
 from glob import glob
 from datetime import datetime, timedelta
 from subprocess import call
@@ -62,38 +62,37 @@ def get_parser():
     return parser
 
 
-def main(args):
-    if args.version:
+def main(single=None, dump_screen=None, bulk=None, record_from=None, record_to=None, compress=False, no_progress=False, skip_on_error=False, version=False):
+    if version:
         print("MRT/RIB converter version %s." % __version__)
 
 
-    if args.single:
-        prefixes = mrtx.parse_mrt_file(args.single[0],
-                                       print_progress=not args.no_progress,
-                                       skip_record_on_error=args.skip_on_error)
-        mrtx.dump_prefixes_to_file(prefixes, args.single[1], args.single[0])
-        if not args.no_progress:
+    if single:
+        prefixes = mrtx.parse_mrt_file(single[0],
+                                       print_progress=not no_progress,
+                                       skip_record_on_error=skip_on_error)
+        mrtx.dump_prefixes_to_file(prefixes, single[1], single[0])
+        if not no_progress:
             v6 = sum(1 for x in prefixes if ':' in x)
             v4 = len(prefixes) - v6
             print('IPASN database saved (%d IPV4 + %d IPV6 prefixes)' % (v4, v6))
-        if args.compress:
-            call(['gzip', args.single[1]])
+        if compress:
+            call(['gzip', single[1]])
 
 
-    if args.dump_screen:
-        mrtx.dump_screen_mrt_file(args.dump_screen[0],
-                                  record_to=args.record_to,
-                                  record_from=args.record_from,
+    if dump_screen:
+        mrtx.dump_screen_mrt_file(dump_screen[0],
+                                  record_to=record_to,
+                                  record_from=record_from,
                                   screen=stdout)
 
 
-    if args.bulk:
+    if bulk:
         try:
-            dt = datetime.strptime(args.bulk[0], '%Y-%m-%d').date()  # TODO:
-            dt_end = datetime.strptime(args.bulk[1], '%Y-%m-%d').date()
+            dt = datetime.strptime(bulk[0], '%Y-%m-%d').date()  # TODO:
+            dt_end = datetime.strptime(bulk[1], '%Y-%m-%d').date()
         except ValueError:
-            print("ERROR: malformed date, try YYYY-MM-DD")
-            exit()
+            raise ValueError("ERROR: malformed date, try YYYY-MM-DD")
         print("Starting bulk RIB conversion, from %s to %s..." % (dt, dt_end))
         stdout.flush()
         while dt <= dt_end:
@@ -111,7 +110,7 @@ def main(args):
             dat = mrtx.parse_mrt_file(dump_file)
             out_file = "ipasn_%d%02d%02d.dat" % (dt.year, dt.month, dt.day)
             mrtx.dump_prefixes_to_file(dat, out_file, dump_file)
-            if args.compress:
+            if compress:
                 call(['gzip', out_file])
             dt += timedelta(1)
         #
@@ -120,7 +119,8 @@ def main(args):
 def climain():
     parser = get_parser()
     args = parser.parse_args()
-    return main(args)
+    args_dict = vars(args)
+    return main(**args_dict)
 
 if __name__ == "__main__":
     climain()
